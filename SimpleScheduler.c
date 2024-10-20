@@ -13,12 +13,12 @@
 #include <readline/readline.h>
 #include <readline/history.h>
 
-#define MaxProcesses 250;
 
 int ncpu;
 int TSLICE;
 
 sem_t scheduler;
+sem_t ready_q_sem;
 
 typedef struct {
     char* cmd;
@@ -32,17 +32,18 @@ typedef struct {
 }process;
 
 typedef struct{
-   process queue[250];
+   process queue[1000];
    int rear;
    int front;
 } ProcessQueue;
 
 
-ProcessQueue* scheduler_q;
+ProcessQueue* ready_q;
+ProcessQueue* running_q;
 ProcessQueue* terminated_q;
 
 void enqueue(ProcessQueue* p,process p1){
-    if(p->rear=250){
+    if(p->rear=1000){
         printf("queue is full\n");
         exit(EXIT_FAILURE);
     }
@@ -51,17 +52,17 @@ void enqueue(ProcessQueue* p,process p1){
     p->rear++;
 }
 
-void dequeu(ProcessQueue p){
-    if(p.rear==0){
+void dequeu(ProcessQueue* p){
+    if(p->rear==0){
         printf("queue is empty\n");
         exit(EXIT_FAILURE);
     }
 
-    p.front++;
+    p->front++;
 }
 
 void printQueue(ProcessQueue* p){
-    for(int i=0;i<p->rear;i++){
+    for(int i=p->front;i<p->rear;i++){
         printf("command-%d was -%s\n",p->queue[i].pid,p->queue[i].cmd);
         printf("Starting time for process: %s\n", ctime(&p->queue[i].initial_time));
         printf("End time for process: %s\n", ctime(&p->queue[i].end_time));
@@ -72,24 +73,25 @@ void printQueue(ProcessQueue* p){
 }
 
 //for handling the process that are completed
-void handler(int signo){
+void handler(int sig){
     int status;
     pid_t pid;
     //checking for completed processes
     while ((pid = waitpid(-1, &status, WNOHANG)) > 0){
-        for(int i=0;i<scheduler_q->rear;i++){
-            if(scheduler_q->queue[i].pid==pid){
+        sem_wait(&ready_q_sem);
+        for(int i=ready_q->front;i<ready_q->rear;i++){
+            if(ready_q->queue[i].pid==pid){
                 //sent to terminated queue:
-                enqueue(terminated_q,scheduler_q->queue[i]);
-
+                enqueue(terminated_q,ready_q->queue[i]);
                 //remove from scheduer queue:
-                for (int j = i; j < scheduler_q->rear; j++) {
-                    scheduler_q->queue[j] = scheduler_q->queue[j + 1];
+                for (int j = i; j < ready_q->rear; j++) {
+                    ready_q->queue[j] = ready_q->queue[j + 1];
                 }
-                scheduler_q->rear--;
+                ready_q->rear--;
 
             }
         }
+        sem_post(&ready_q_sem);
     }
 }
 
@@ -104,9 +106,14 @@ int main(int argc, char** argv){
     TSLICE=atoi(argv[2]);
 
     sem_init(&scheduler,0,0);
+    sem_init(&ready_q_sem,0,1);
  
-    scheduler_q->rear=0; 
+    ready_q->rear=0; 
+    ready_q->front=0;
     terminated_q->rear=0;
+    terminated_q->front=0;
+    running_q->rear=0;
+    running_q->front=0;
 
     int scheduler_child=fork();
     //scheduler process started:
@@ -116,27 +123,37 @@ int main(int argc, char** argv){
     }
     if(scheduler_child==0){
         //for roundRobin
-        int iter=0;
+        int iter=ready_q->front;
         while(1){
-           if(iter>=scheduler_q->rear){
-                iter=0;
+           //sem_wait(&scheduler);
+           sem_wait(&ready_q_sem);
+           if(iter>=ready_q->rear){
+                iter=ready_q->front;
            }
            int check_num=ncpu;
-           while(iter<scheduler_q->rear && check_num>0){
+           while(iter<ready_q->rear && check_num>0){
             //finding ready for execution
-            if(scheduler_q->queue[iter].state==1){
+            if(ready_q->queue[iter].state==1){
+               //removed from ready_q
+               dequeu(ready_q);
                //sent for running
-               scheduler_q->queue[iter].state=0;
+               enqueue(running_q,ready_q->queue[iter]);
+               //execute this processs
+               kill(ready_q->queue[iter].pid, SIGCONT);
+               ready_q->queue[iter].state=0;
                check_num--;
             }
            }
-           usleep(TSLICE * 1000);
-           //shift the processes
-           for(int i=0;i<scheduler_q->rear;i++){
-            //senting running to ready
-            if(scheduler_q->queue[i].state==0){
-
-            }
+           sem_post(&ready_q_sem);
+           sleep(TSLICE);
+           //shift the processes from running_queue to rear of ready_queue
+            for(int i=0;i<ready_q->rear;i++){
+             for(int i=running_q->front;i<running_q->rear;i++){
+                enqueue(ready_q,running_q->queue[i]);
+                //stop this proceess from execution
+                kill(running_q->queue[i].pid, SIGSTOP);
+                dequeu(running_q);
+             }
            }
 
 
@@ -164,6 +181,7 @@ int main(int argc, char** argv){
         if (len > 0 && command[len - 1] == '\n') {
             command[len - 1] = '\0';
         }
+
         // freeing space 
         if(command){
             free(command);
