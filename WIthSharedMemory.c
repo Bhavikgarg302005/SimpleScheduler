@@ -133,7 +133,7 @@ int main(int argc, char** argv) {
     data->running_q.rear = 0;
     data->running_q.front = 0;
 
-    signal(SIGCHLD, (void (*)(int))handler);
+    //signal(SIGCHLD, (void (*)(int))handler);
 
     int scheduler_child = fork();
     // Scheduler process started:
