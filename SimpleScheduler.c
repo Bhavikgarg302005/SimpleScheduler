@@ -43,7 +43,7 @@ ProcessQueue* running_q;
 ProcessQueue* terminated_q;
 
 void enqueue(ProcessQueue* p,process p1){
-    if(p->rear=1000){
+    if(p->rear==1000){
         printf("queue is full\n");
         exit(EXIT_FAILURE);
     }
