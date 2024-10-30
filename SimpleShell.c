@@ -9,7 +9,7 @@
 #include <ctype.h> 
 #include <readline/readline.h>
 #include <readline/history.h>
-#include "shared_queue.c"
+#include "sharedMemory.c"
 
 
 #define MAX_COMMANDS 100
