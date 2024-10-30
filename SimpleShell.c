@@ -55,9 +55,7 @@ void submit(char* input, PriorityQueue* queue) {
     process.priority = priority;
     process.pid = -2;
 
-    if (!is_full(queue)){
-        enqueue(queue, &process);
-    }
+    enqueue(queue,&process);
 
     free(dup_input);
     return;
