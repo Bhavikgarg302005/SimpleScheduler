@@ -21,10 +21,11 @@ int TSLICE;
 PriorityQueue* queue;
 sharedArray* arr;
 
-
+//arrays for PIDS
 pid_t pids[256];
 
 int it = 0;
+//struct for process
 typedef struct {
     char* cmd;
     int pid;
@@ -44,13 +45,16 @@ typedef struct {
 
 
 
-
+//because compiler can think of it as fixed so volatile
 volatile sig_atomic_t terminate = 0;
 
+
+//printing after termination of scheduler in multiple of TSLCE
 char* process_name[256];
 void hstry_print(int signum) {
     (void) signum;
     terminate = 1;
+    //Race condition
     sem_wait(&arr->mutex);
     for (int i = 0; i < it; i++) {
         if (kill(pids[i], 0) == 0) {
@@ -62,13 +66,14 @@ void hstry_print(int signum) {
     }                                                                                       
     sem_post(&arr->mutex);
     printf("Scheduler history: \n");
+    //Race condition
     sem_wait(&arr->mutex);
     for (int i = 0; i < it; i++) {      
         printf("%d----->",i+1);                                                                                                                                
         printf("PID: %d\nName: %s\nCompletion Time: %d\nWaiting Time: %d\n",pids[i], arr->programs[i], arr->completion[i],arr->waiting[i]);
     }
     sem_post(&arr->mutex);
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            
+    //Freeing Memory                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     
     shmdt(queue);
     shmdt(arr);
 
@@ -76,7 +81,7 @@ void hstry_print(int signum) {
     exit(0);
 }
 
-
+//Runs infiitely
 void scheduler(PriorityQueue* queue) {
     Process P[NCPU];
     int num = get_num_process(queue);
@@ -87,7 +92,7 @@ void scheduler(PriorityQueue* queue) {
     else{
         cycle=NCPU;
     }
-
+    //select process then continue running
     while (cycle > 0) {
             if(NCPU>num){
               cycle=num;
@@ -97,7 +102,7 @@ void scheduler(PriorityQueue* queue) {
             }
         for (int i = 0; i < cycle; i++) {
             dequeue(queue, &P[i]);
-            
+            //checking pids
             if (P[i].pid == -2) {
                 P[i].pid = fork();
                 if (P[i].pid == -1) {
@@ -113,6 +118,7 @@ void scheduler(PriorityQueue* queue) {
                     perror("Error");
                     exit(EXIT_FAILURE);
                 } else {
+                    //Race condition for copying command to shared Array
                     sem_wait(&arr->mutex);
                     pids[it] = P[i].pid;    
                     arr->programs[it]=malloc(strlen(P[i].cmd)+1);
@@ -121,9 +127,11 @@ void scheduler(PriorityQueue* queue) {
                     sem_post(&arr->mutex);
                 }
             }
+            //Race condition
             sem_wait(&arr->mutex);
             arr->completion[i]+=TSLICE;
             sem_post(&arr->mutex);
+            //Race condition for completion Time
             if (kill(P[i].pid, SIGCONT) == -1) {
                sem_wait(&arr->mutex);
                arr->completion[i]-=TSLICE;
@@ -138,14 +146,18 @@ void scheduler(PriorityQueue* queue) {
         
         for (int i = 0; i < cycle; i++) {
             int z;
+            //Checking process completed or not if yes then donot enque it again
             int x=waitpid(P[i].pid,&z,WNOHANG);
             if(x==0){
                 if (kill(P[i].pid, 0) == 0) {
+                 
                  enqueue(queue, &P[i]);
+                 //Race condition
                  sem_wait(&arr->mutex);
                  arr->waiting[i]+=TSLICE;
                  sem_post(&arr->mutex);
                  if (kill(P[i].pid, SIGTSTP) == -1) {
+                    //Race condition
                     sem_wait(&arr->mutex);
                     arr->waiting[i]-=TSLICE;
                     sem_post(&arr->mutex);
@@ -162,7 +174,9 @@ void scheduler(PriorityQueue* queue) {
     }
 }
 int main(int argc, char** argv){
+    //creating shared Array 
     key_t key = ftok("keyfile", 'R');
+    //key for shmget
     int shmid = shmget(key, sizeof(int), 0666);
     int shmid2= shmget(key,sizeof(int),0666);
     int x=create_priority_queue(key,&queue);
@@ -175,10 +189,12 @@ int main(int argc, char** argv){
     
     queue = shmat(shmid, NULL, 0);
     arr= shmat(shmid2,NULL,0);
+    //errror check 
     if (queue == (PriorityQueue*)(-1)) {
         perror("shmat122");
         return 1;
     }
+    //error check
     if(arr == (sharedArray*)(-1)){
         printf("error in shared Array");
         exit(EXIT_FAILURE);
