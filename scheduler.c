@@ -14,7 +14,7 @@
 #include <readline/history.h>
 #include <sys/time.h>
 #include <sys/ipc.h>
-#include "shared_queue.c"
+#include "sharedMemory.c"
 
 int NCPU;
 int TSLICE;
