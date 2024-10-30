@@ -106,21 +106,6 @@ int dequeue(PriorityQueue* queue, Process* process) {
 
     return 1;  // Successfully dequeued
 }
-int empty_check(PriorityQueue *queue) {
-    sem_wait(&queue->mutex);
-    int empty = (queue->rear == -1);
-    sem_post(&queue->mutex);
-
-    return empty;
-}
-
-int is_full(PriorityQueue *queue) {
-    sem_wait(&queue->mutex);
-    int full = (queue->rear == MAX_QUEUE_SIZE - 1);
-    sem_post(&queue->mutex);
-
-    return full;
-}
 int get_num_process(PriorityQueue* queue){
     sem_wait(&queue->mutex);
     int ret = queue->num_process;
