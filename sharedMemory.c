@@ -113,3 +113,18 @@ int get_num_process(PriorityQueue* queue){
 
     return ret;
 }
+int is_empty(PriorityQueue *queue) {
+    sem_wait(&queue->mutex);
+    int empty = (queue->rear == -1);
+    sem_post(&queue->mutex);
+
+    return empty;
+}
+
+int is_full(PriorityQueue *queue) {
+    sem_wait(&queue->mutex);
+    int full = (queue->rear == MAX_QUEUE_SIZE - 1);
+    sem_post(&queue->mutex);
+
+    return full;
+}
