@@ -25,10 +25,6 @@ sharedArray* arr;
 pid_t pids[256];
 
 int it = 0;
-
-
-
-
 typedef struct {
     char* cmd;
     int pid;
@@ -141,18 +137,25 @@ void scheduler(PriorityQueue* queue) {
         usleep(TSLICE*1000);
         
         for (int i = 0; i < cycle; i++) {
-            if (kill(P[i].pid, 0) == 0) {
-                enqueue(queue, &P[i]);
-                sem_wait(&arr->mutex);
-                arr->waiting[i]+=TSLICE;
-                sem_post(&arr->mutex);
-                if (kill(P[i].pid, SIGTSTP) == -1) {
+            int z;
+            int x=waitpid(P[i].pid,&z,WNOHANG);
+            if(x==0){
+                if (kill(P[i].pid, 0) == 0) {
+                 enqueue(queue, &P[i]);
+                 sem_wait(&arr->mutex);
+                 arr->waiting[i]+=TSLICE;
+                 sem_post(&arr->mutex);
+                 if (kill(P[i].pid, SIGTSTP) == -1) {
                     sem_wait(&arr->mutex);
                     arr->waiting[i]-=TSLICE;
                     sem_post(&arr->mutex);
                     perror("SIGTSTP");
                     exit(EXIT_FAILURE);
                 }
+             }
+            }
+            else if(x==-1){
+                perror("Error");
             }
         }
         num -= cycle;
