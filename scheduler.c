@@ -178,7 +178,7 @@ int main(int argc, char** argv){
     }
     if(arr == (sharedArray*)(-1)){
         printf("error in shared Array");
-        return 1;
+        exit(EXIT_FAILURE);
     }
     if (signal(SIGINT, hstry_print) == SIG_ERR) {
         perror("Error in signal handler");
