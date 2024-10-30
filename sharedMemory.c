@@ -38,19 +38,23 @@ typedef struct PriorityQueue {
     sem_t full;
     int priority;
 } PriorityQueue;
+
+//for making it happend in sharedMemory using key
 int create_priority_queue(key_t key, PriorityQueue **queue) {
     int shmid = shmget(key, sizeof(PriorityQueue), IPC_CREAT | 0666);
+    //error check
     if (shmid == -1) {
         perror("shmget");
         return -1;
     }
 
     *queue = (PriorityQueue *)shmat(shmid, NULL, 0);
+    //error check
     if (*queue == (PriorityQueue *)(-1)) {
         perror("shmat");
         return -1;
     }
-
+    //made semaphores for ensuring no race condition
     sem_init(&(*queue)->mutex, 1, 1);
     sem_init(&(*queue)->empty, 1, MAX_QUEUE_SIZE);
     sem_init(&(*queue)->full, 1, 0);
@@ -59,6 +63,7 @@ int create_priority_queue(key_t key, PriorityQueue **queue) {
     (*queue)->rear = 0;
     return 0;
 }
+//this create is for SharedArray which is required in Scheduler to hold completion time and waiting time
 int create(key_t key,sharedArray **arr){
         int shmid = shmget(key, sizeof(sharedArray), IPC_CREAT | 0666);
         if (shmid == -1) {
@@ -74,7 +79,7 @@ int create(key_t key,sharedArray **arr){
         (*arr)->it=0;
         return 0;
 }
-
+//Add in queue
 void enqueue(PriorityQueue* queue, const Process* process) {
     sem_wait(&queue->empty);
     sem_wait(&queue->mutex);
